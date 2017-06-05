@@ -83,9 +83,39 @@ def open_atomic(filepath, *args, **kwargs):
         os.rename(tmppath, filepath)
 
 def safe_pickle_dump(obj, fname):
-    with open_atomic(fname, 'wb') as f:
+   # with open_atomic(fname, 'wb') as f:
+   #     #pickle.dump(obj, f, -1)
+    with open(fname, 'wb') as pickle_file:
+        pickle.dump(obj, pickle_file)
+
+def my_safe_pickle_dump(obj, fname):
+    with atomic_write(fname) as f:
         pickle.dump(obj, f, -1)
 
+@contextmanager
+def atomic_write(filepath, binary=False, fsync=False):
+    """ Writeable file object that atomically updates a file (using a temporary file).
+
+    :param filepath: the file path to be opened
+    :param binary: whether to open the file in a binary mode instead of textual
+    :param fsync: whether to force write the file to disk
+    """
+
+    tmppath = filepath + '~'
+    while os.path.isfile(tmppath):
+        tmppath += '~'
+    try:
+        with open(tmppath, 'wb' if binary else 'w') as file:
+            yield file
+            if fsync:
+                file.flush()
+                os.fsync(file.fileno())
+        os.rename(tmppath, filepath)
+    finally:
+        try:
+            os.remove(tmppath)
+        except (IOError, OSError):
+            pass
 
 # arxiv utils
 # -----------------------------------------------------------------------------
