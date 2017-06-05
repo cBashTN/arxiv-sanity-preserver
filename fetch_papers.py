@@ -66,23 +66,23 @@ def load_database():
 
 
 def store_database(data, path):
-    if num_added_total > 0:
-        print('Saving database with %d papers to %s' %
-              (len(data), path))
-        safe_pickle_dump(data, path)
+    print('Saving database with %d papers to %s' %
+        (len(data), path))
+    safe_pickle_dump(data, path)
 
 
-def fetch_new_paper_info(args, url):
+def fetch_new_paper_info(args, base_url):
     # -----------------------------------------------------------------------------
     # main loop where we fetch the new results
-    print('database has %d entries at start' % (len(db)))
-    num_added_total = 0
+    num_added_total = len(db)
+    print('database has %d entries at start' % (num_added_total))
+    
     for i in range(args.start_index, args.max_index, args.results_per_iteration):
 
         print("Results %i - %i" % (i, i + args.results_per_iteration))
         query = 'search_query=%s&sortBy=lastUpdatedDate&start=%i&max_results=%i' % (args.search_query,
                                                                                     i, args.results_per_iteration)
-        with urllib.request.urlopen(url + query) as url:
+        with urllib.request.urlopen(base_url + query) as url:
             print(url)
             response = url.read()
         parse = feedparser.parse(response)
@@ -112,16 +112,17 @@ def fetch_new_paper_info(args, url):
         print('Added %d papers, already had %d.' % (num_added, num_skipped))
 
         if len(parse.entries) == 0:
-            print(
-                'Received no results from arxiv. Rate limiting? Exiting. Restart later maybe.')
+            print('Received no results from arxiv. Rate limiting? Exiting. Restart later maybe.')
             print(response)
-            break
+            #break
 
         if num_added == 0 and args.break_on_no_added == 1:
             print('No new papers were added. Assuming no new papers exist. Exiting.')
-            break
+            #break
 
         wait_a_couple_of_seconds(args.wait_time)
+        
+        return num_added
 
 def wait_a_couple_of_seconds(wait_time):
     rand_wait_time = wait_time + random.uniform(0, 3)
@@ -155,13 +156,14 @@ if __name__ == "__main__":
         print('Searching arXiv for %s' % (args.search_query, ))
 
         # main loop where we fetch the new results
-        fetch_new_paper_info(args, base_url)
+        num_added = fetch_new_paper_info(args, base_url)
 
         # save the database before we quit, if we found anything new
-        store_database(db, Config.db_path)
+        if num_added > 0:
+            store_database(db, Config.db_path)
 
         wait_a_couple_of_seconds(60)
 
-        if isInProductionMode and len(db)<max_paper_index:
-            print('I have now' + str(len(db)) +'paper info. let s stop this.')
+        if isInProductionMode and len(db)>=max_paper_index:
+            print('I have now ' + str(len(db)) +' paper info. let s stop this.')
             break
